@@ -92,8 +92,10 @@ bot.dialog('help', [(session) => {
 // Запись идентификатора в БД
 //
 bot.dialog('setup', [(session) => {
-	// Если канал не зарегистрирован
-	if(!channelIdMatch(channelIds, session)) {
+	// Канал уже зарегистрирован
+	if(channelIdMatch(channelIds, session.message.address.channelId)) {
+		session.send(`Ваш идентификатор канала уже зарегистрирован.`);
+	} else {
 		const channelIdsCollection = client.db("skypelab-bot").collection("channelIds");
 		channelIdsCollection.insertOne({channelId: session.message.address.channelId}).then(() => {
 			// Обновление списка идентификаторов
@@ -104,8 +106,6 @@ bot.dialog('setup', [(session) => {
 		}).catch(err => {
 			console.log(err);
 		});
-	} else {
-		session.send(`Ваш идентификатор канала уже зарегистрирован.`);
 	}
 }])
 		.triggerAction({
@@ -119,7 +119,7 @@ bot.dialog('setup', [(session) => {
 //
 bot.dialog('subs', [(session) => {
 	if(subs.length > 0) {
-		if(channelIdMatch(subs, session)) {
+		if(channelIdMatch(subs, session.message.address.channelId)) {
 			let subsString = `Список подписок для данного канала: \n`;
 			subs.forEach((element) => {
 				// Отсеивание подписок, не относящихся к каналу
@@ -160,19 +160,26 @@ bot.dialog('subscribe', [function (session) {
 	function (session, results) {
 		var subName = `${session.dialogData.project}_${results.response}`;
 
-		if() {
-
-		} else {
+		// Подписка с таким ID для канала существует
+		if(subMatch(subs, session.message.address.channelId, subName)) {
 			session.send(`Подписка ${subname} уже существует.`);
-		}
+		} else {
 		const subsCollection = client.db("skypelab-bot").collection("subs");
-		subsCollection.insertOne()
-				.then()
+		subsCollection.insertOne({ channelId: session.message.address.channelId, 
+			subName: subName, 
+			project: session.dialogData.project,
+			action: results.response})
+				.then(() => {
+					return subsCollection.find().toArray();
+				})
+				.then((updatedCollection) => {
+					subs = updatedCollection;
+					session.send(`Новая подписка ${subName} сохранена. Используйте команду "@SkypeLab subs", чтобы увидеть все подписки.`);
+				})
 				.catch(err => {
 					console.log(err);
 				});
-
-		session.send(`Новая подписка для вашего канала: ${subName}. Используйте команду "@SkypeLab subs", чтобы увидеть все подписки.`);
+		}
 	}])
 	.endConversationAction("endSub", "Отмена", {
 		matches: new RegExp(`/@SkypeLab cancel/`),
@@ -189,13 +196,20 @@ bot.dialog('subscribe', [function (session) {
 //
 bot.dialog('unsubscribe', [ function (session) {
 			builder.Prompts.text(session, "Введите идентификатор подписки для удаления");
-},
+		},
 		function (session, results) {
-			var subId = results.response;
+			var subName = results.response;
 
-			if(subs.includes(subId)) {
-				subs.splice(subId);
-				session.send("Подписка удалена.");
+			if(subMatch(subs, session.message.address.channelId, subName)) {
+				const subsCollection = client.db("skypelab-bot").collection("subs");
+				subsCollection.deleteOne({channelId: session.message.address.channelId, subName: subName})
+				.then(() => {
+					return subsCollection.find().toArray();
+				})
+				.then((updatedCollection) => {
+					subs = updatedCollection;
+					session.send(`Подписка ${subName} удалена. Используйте команду "@SkypeLab subs", чтобы увидеть все подписки.`);
+				})
 			} else {
 				session.send("Подписка не найдена. Используйте команду \"@SkypeLab subs\", чтобы увидеть все подписки.");
 			}
@@ -211,11 +225,30 @@ bot.dialog('unsubscribe', [ function (session) {
 		}
 });
 
-function objectPropertyMatch(targetArray, property, value) {
+// Проверка на совпадение ID канала с ID канала некоторой записи
+// Принимает:
+//	* targetArray - массив объектов
+//	* value - искомое значение
+function channelIdMatch(targetArray, value) {
 	let flag = false;
 
 	targetArray.forEach((element) => {
-		if(element[property] == value) {
+		if(element['channelId'] == value) {
+			flag = true;
+		}
+	});
+
+	return flag;
+}
+
+// Проверка на совпадение подписки
+// Принимает:
+
+function subMatch(subArray, channelId, subName) {
+	let flag = false;
+
+	subArray.forEach((element) => {
+		if(element['channelId'] == channelId && element['subName'] == subName) {
 			flag = true;
 		}
 	});
