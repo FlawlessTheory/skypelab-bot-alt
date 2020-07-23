@@ -1,0 +1,28 @@
+{
+  "name": "skypelab-bot",
+  "version": "1.0.0",
+  "description": "A Skype bot that relays GitLab messages",
+  "main": "bot.js",
+  "dependencies": {
+    "assert": "^2.0.0",
+    "axios": "^0.19.2",
+    "botbuilder": "^3.15.0",
+    "botbuilder-azure": "^4.9.2",
+    "eventsource": "^1.0.7",
+    "fs": "0.0.1-security",
+    "mongodb": "^3.5.9",
+    "object-hash": "^2.0.3",
+    "path": "^0.12.7",
+    "request": "^2.88.2",
+    "restify": "^8.5.1",
+    "zip-folder": "^1.0.0"
+  },
+  "devDependencies": {},
+  "scripts": {
+    "start": "node bot.js",
+    "dev": "node bot.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "FlawlessTheory",
+  "license": "ISC"
+}
