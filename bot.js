@@ -93,11 +93,13 @@ bot.dialog('help', [(session) => {
 //
 bot.dialog('setup', [(session) => {
 	// Канал уже зарегистрирован
-	if(channelIdMatch(channelIds, session.message.address.channelId)) {
+	const currChannelId = session.message.address.channelId;
+
+	if(channelIds.filter((element) => { element.channelId == currChannelId })) {
 		session.send(`Ваш идентификатор канала уже зарегистрирован.`);
 	} else {
 		const channelIdsCollection = client.db("skypelab-bot").collection("channelIds");
-		channelIdsCollection.insertOne({channelId: session.message.address.channelId}).then(() => {
+		channelIdsCollection.insertOne({channelId: currChannelId}).then(() => {
 			// Обновление списка идентификаторов
 			return channelIdsCollection.find().toArray();
 		}).then((updatedCollection) => {
@@ -119,11 +121,13 @@ bot.dialog('setup', [(session) => {
 //
 bot.dialog('subs', [(session) => {
 	if(subs.length > 0) {
-		if(channelIdMatch(subs, session.message.address.channelId)) {
+		var currChannelId = session.message.address.channelId;
+
+		if(subs.filter((element) => { element.channelId == currChannelId})) {
 			let subsString = `Список подписок для данного канала: \n`;
 			subs.forEach((element) => {
 				// Отсеивание подписок, не относящихся к каналу
-				if(session.message.address.channelId == element.channelId) {
+				if(currChannelId == element.channelId) {
 					subsString += `- ${element.subName}\n`;
 				}
 			});
@@ -159,13 +163,14 @@ bot.dialog('subscribe', [function (session) {
 	},
 	function (session, results) {
 		var subName = `${session.dialogData.project}_${results.response}`;
+		var currChannelId = session.message.address.channelId;
 
 		// Подписка с таким ID для канала существует
-		if(subMatch(subs, session.message.address.channelId, subName)) {
+		if(subs.filter((element) => { element.channelId == currChannelId && element.subName == subName })) {
 			session.send(`Подписка ${subname} уже существует.`);
 		} else {
 		const subsCollection = client.db("skypelab-bot").collection("subs");
-		subsCollection.insertOne({ channelId: session.message.address.channelId, 
+		subsCollection.insertOne({ channelId: currChannelId, 
 			subName: subName, 
 			project: session.dialogData.project,
 			action: results.response})
@@ -199,10 +204,11 @@ bot.dialog('unsubscribe', [ function (session) {
 		},
 		function (session, results) {
 			var subName = results.response;
+			var currChannelId = session.message.address.channelId;
 
-			if(subMatch(subs, session.message.address.channelId, subName)) {
+			if(subs.filter((element) => { element.channelId == currChannelId && element.subName == subName })) {
 				const subsCollection = client.db("skypelab-bot").collection("subs");
-				subsCollection.deleteOne({channelId: session.message.address.channelId, subName: subName})
+				subsCollection.deleteOne({channelId: currChannelId, subName: subName})
 				.then(() => {
 					return subsCollection.find().toArray();
 				})
@@ -210,6 +216,9 @@ bot.dialog('unsubscribe', [ function (session) {
 					subs = updatedCollection;
 					session.send(`Подписка ${subName} удалена. Используйте команду "@SkypeLab subs", чтобы увидеть все подписки.`);
 				})
+				.catch(err => {
+					console.log(err);
+				});
 			} else {
 				session.send("Подписка не найдена. Используйте команду \"@SkypeLab subs\", чтобы увидеть все подписки.");
 			}
@@ -224,34 +233,3 @@ bot.dialog('unsubscribe', [ function (session) {
 			session.beginDialog(args.action, args);
 		}
 });
-
-// Проверка на совпадение ID канала с ID канала некоторой записи
-// Принимает:
-//	* targetArray - массив объектов
-//	* value - искомое значение
-function channelIdMatch(targetArray, value) {
-	let flag = false;
-
-	targetArray.forEach((element) => {
-		if(element['channelId'] == value) {
-			flag = true;
-		}
-	});
-
-	return flag;
-}
-
-// Проверка на совпадение подписки
-// Принимает:
-
-function subMatch(subArray, channelId, subName) {
-	let flag = false;
-
-	subArray.forEach((element) => {
-		if(element['channelId'] == channelId && element['subName'] == subName) {
-			flag = true;
-		}
-	});
-
-	return flag;
-}
