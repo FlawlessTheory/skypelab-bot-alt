@@ -1,17 +1,19 @@
-/*const __API__ = 'https://random-chooser-backend.herokuapp.com/api/v1';*/
-
 const restify = require('restify');
 const builder = require('botbuilder');
 const botbuilder_azure = require("botbuilder-azure");
 const EventSource = require("eventsource");
 const axios = require('axios');
 const assert = require('assert');
+const body_parser = require('body-parser');
 
 // Запуск сервера restify
 const server = restify.createServer();
 server.listen(process.env.port || process.env.PORT || 3978, function () {
    console.log('%s listening to %s', server.name, server.url); 
 });
+
+server.use(restify.plugins.queryParser());
+server.use(body_parser.text());
 
 // Подключение к MongoDB
 const MongoClient = require('mongodb').MongoClient;
@@ -21,6 +23,7 @@ const client = new MongoClient(uri, { useNewUrlParser: true });
 // Глобальные переменные для справочника ID каналов и подписок
 let channelIds = [];
 let subs = [];
+let addresses = [];
 
 // Подключение клиента к базе данных и заполнение глобальных переменных
 client.connect().then(() => {
@@ -45,14 +48,43 @@ const connector = new builder.ChatConnector({
     openIdMetadata: process.env.BotOpenIdMetadata
 });
 
-// Прослушивание сообщений от пользователей
-server.post('/api/messages', connector.listen());
+// Прослушивание запросов от Camunda
+// server.post('api/camunda', connector.send("Camunda"));
 
 const bot = new builder.UniversalBot(connector);
 
 // Регистрация хранилища в памяти
 const inMemoryStorage = new builder.MemoryBotStorage();
 bot.set('storage', inMemoryStorage);
+
+// Прослушивание сообщений от пользователей
+server.post('/api/messages', connector.listen());
+
+// Прослушивание запросов от GitLab
+server.post('/api/gitlab/projects/:project/actions/:action/notification', (req, res, next) => {
+	var project = req.params.project;
+	var action = req.params.action;
+	var notification = req.body;
+
+	subs.forEach((sub) => {
+		if(sub.project == project && sub.action == action) {
+			addresses.forEach((element) => {
+				if(sub.channelId == element.channelId) {
+					var msg = new builder.Message().address(element);
+					msg.text(notification);
+					bot.send(msg)
+				}
+			})
+		}
+	})
+
+	res.send("request accepted");
+	next();
+});
+
+// server.post('api/gitlab', (req, res, next) => {
+
+// })
 
 // На нераспознанные сообщения бот молчит
 //
@@ -92,6 +124,11 @@ bot.dialog('help', [(session) => {
 // Запись идентификатора в БД
 //
 bot.dialog('setup', [(session) => {
+	// Запись адреса
+	if(!addresses.includes(session.message.address)) {
+		addresses.push(session.message.address);
+	}
+
 	// Канал уже зарегистрирован
 	const currChannelId = session.message.address.channelId;
 
