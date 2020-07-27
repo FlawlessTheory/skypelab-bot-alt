@@ -40,10 +40,12 @@ client.connect().then(() => {
 
 const botName = "skypelab-bot";
 
+var myAppId = "466688a6-0456-4d96-a826-b367ad44f826";
+
 // Create chat connector for communicating with the Bot Framework Service
 //
 const connector = new builder.ChatConnector({
-    appId: process.env.MicrosoftAppId,
+    appId: myAppId,
     appPassword: process.env.MicrosoftAppPassword,
     openIdMetadata: process.env.BotOpenIdMetadata
 });
